@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Stylized car illustration">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0" stop-color="#22272b"/>
+      <stop offset="0.55" stop-color="#101316"/>
+      <stop offset="1" stop-color="#070809"/>
+    </radialGradient>
+    <linearGradient id="car" x1="0" x2="1">
+      <stop offset="0" stop-color="#8fa83d"/>
+      <stop offset="0.45" stop-color="#d7ff69"/>
+      <stop offset="1" stop-color="#718931"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" x2="1">
+      <stop offset="0" stop-color="#171d21"/>
+      <stop offset="1" stop-color="#3b4952"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <g opacity=".16" stroke="#e8ffd0" stroke-width="2">
+    <path d="M0 170h1600M0 350h1600M0 530h1600M0 710h1600"/>
+    <path d="M180 0v900M430 0v900M680 0v900M930 0v900M1180 0v900M1430 0v900"/>
+  </g>
+  <ellipse cx="810" cy="700" rx="610" ry="62" fill="#000" opacity=".75" filter="url(#shadow)"/>
+  <path d="M245 617c24-81 76-126 161-142l176-31c70-91 161-137 272-137h177c88 0 165 38 229 112l70 82c60 11 106 37 139 76l32 40-24 72H216l29-72z" fill="url(#car)"/>
+  <path d="M612 432c67-72 141-107 224-107h183c71 0 131 29 181 87l25 29H593l19-9z" fill="url(#glass)"/>
+  <path d="M853 326v115M1051 330l134 111" stroke="#080a0b" stroke-width="17" opacity=".8"/>
+  <path d="M308 570h121c24 0 43 20 43 44v29H272l36-73zm1056 2h104l31 44-11 27h-175v-22c0-27 22-49 51-49z" fill="#f3ffd5" opacity=".8"/>
+  <g fill="#0a0b0c" stroke="#32373b" stroke-width="18">
+    <circle cx="481" cy="669" r="104"/>
+    <circle cx="1262" cy="669" r="104"/>
+  </g>
+  <g fill="#9da4a8" stroke="#1b1d1f" stroke-width="14">
+    <circle cx="481" cy="669" r="49"/>
+    <circle cx="1262" cy="669" r="49"/>
+  </g>
+  <path d="M525 500h713" stroke="#41501c" stroke-width="9" opacity=".65"/>
+  <text x="800" y="805" fill="#d7ff69" font-family="Arial, sans-serif" font-size="30" font-weight="700" text-anchor="middle" letter-spacing="8">COMMUNITY PHOTO PENDING</text>
+</svg>
