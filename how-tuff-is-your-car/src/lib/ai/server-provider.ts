@@ -12,10 +12,10 @@ export class AiProviderError extends Error {
 }
 
 export async function getServerVehicleVisionProvider(): Promise<ServerVehicleVisionProvider> {
-  const provider = (process.env.AI_PROVIDER || "openai").toLowerCase();
-  if (provider === "openai") {
-    const { openAiVehicleVisionProvider } = await import("./openai-provider");
-    return openAiVehicleVisionProvider;
+  const provider = (process.env.AI_PROVIDER || "cloudflare").toLowerCase();
+  if (["cloudflare", "workers-ai", "cloudflare-workers-ai"].includes(provider)) {
+    const { cloudflareVehicleVisionProvider } = await import("./cloudflare-provider");
+    return cloudflareVehicleVisionProvider;
   }
   throw new AiProviderError(`Unknown AI_PROVIDER: ${provider}. Add a provider adapter in src/lib/ai/server-provider.ts.`, 503);
 }

@@ -3,12 +3,17 @@ export type CarRatings = Record<RatingKey, number>;
 export type RatingConfidence = "high" | "medium" | "estimated";
 export type CarSource = "curated" | "epa" | "wikidata" | "classic-catalog" | "nhtsa";
 
+export type CarImageMatchLevel = "exact" | "year-model" | "generation" | "model-family" | "fallback";
+
 export interface CarImageCredit {
   url: string;
   sourceUrl?: string;
   author?: string;
   license?: string;
   fallback?: boolean;
+  matchLevel?: CarImageMatchLevel;
+  matchLabel?: string;
+  queryUsed?: string;
 }
 
 export interface CarSpecs {

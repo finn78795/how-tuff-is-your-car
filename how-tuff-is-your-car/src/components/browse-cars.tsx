@@ -58,7 +58,7 @@ export function BrowseCars() {
         <div>
           <p className="eyebrow">Browse the garage</p>
           <h2 className="section-title">Go year by year.</h2>
-          <p className="mt-3 max-w-2xl text-zinc-500">The classic catalog starts in 1950, while official EPA configurations cover 1984 through the current database year.</p>
+          <p className="mt-3 max-w-2xl text-zinc-500">Start with a year and wander from there. Older cars are usually model-level; newer ones may split into several engines and drivetrains.</p>
         </div>
         <div className="grid gap-2 sm:grid-cols-3">
           <FilterSelect label="Year" value={year} onChange={setYear} options={years.map(String)} disabled={!years.length} />
@@ -68,9 +68,9 @@ export function BrowseCars() {
       </div>
 
       <div className="min-h-40">
-        {loading && <div className="flex items-center justify-center gap-2 rounded-[1.5rem] border border-white/8 bg-white/[0.02] py-14 text-sm font-bold text-zinc-500"><LoaderCircle className="size-4 animate-spin" /> Loading catalog…</div>}
+        {loading && <div className="flex items-center justify-center gap-2 rounded-[1.5rem] border border-white/8 bg-white/[0.02] py-14 text-sm font-bold text-zinc-500"><LoaderCircle className="size-4 animate-spin" /> Finding the cars…</div>}
         {!loading && cars.length > 0 && <><p className="mb-5 text-sm text-zinc-500">{cars.length} configuration{cars.length === 1 ? "" : "s"}</p><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{cars.map((car) => <CarCard key={car.slug} car={car} />)}</div></>}
-        {!loading && !cars.length && <div className="rounded-[2rem] border border-dashed border-white/12 bg-white/[0.02] px-6 py-16 text-center"><h3 className="text-xl font-black text-white">Pick a year, make, and model.</h3><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-500">You will see model-level classic entries and individual EPA powertrain configurations when available.</p></div>}
+        {!loading && !cars.length && <div className="rounded-[2rem] border border-dashed border-white/12 bg-white/[0.02] px-6 py-16 text-center"><h3 className="text-xl font-black text-white">Pick a year, make, and model.</h3><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-500">Older cars may show one broad model entry. Newer ones can split into several trims, engines, and drivetrains.</p></div>}
       </div>
     </section>
   );

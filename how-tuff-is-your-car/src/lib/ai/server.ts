@@ -1,18 +1,24 @@
+import { createHash } from "node:crypto";
 import { searchCatalog } from "@/lib/catalog";
-import type { AccessoryDetectionResult, VehicleAnalysisResult } from "./types";
+import { calculateBuildRating, makeAccessoryId } from "@/lib/build-scoring";
+import type { AccessoryCategory, FactoryStatus, VehicleAnalysisResult } from "./types";
 import { AiProviderError, getServerVehicleVisionProvider } from "./server-provider";
 
-const MAX_FILE_SIZE = 4 * 1024 * 1024;
+const MAX_FILE_SIZE = 3 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const ACCESSORY_CATEGORIES: AccessoryDetectionResult["accessories"][number]["category"][] = [
-  "wheels", "aero", "lighting", "suspension", "body", "utility", "other",
+const ACCESSORY_CATEGORIES: AccessoryCategory[] = [
+  "wheels", "tires", "suspension", "aero", "body", "lighting", "exhaust",
+  "utility", "offroad", "wrap", "tint", "interior", "other",
 ];
+const FACTORY_STATUSES: FactoryStatus[] = ["aftermarket", "factory", "unknown"];
 const requests = new Map<string, { count: number; resetAt: number }>();
+const analysisCache = new Map<string, { value: VehicleAnalysisResult; expiresAt: number }>();
+const CACHE_TTL = 15 * 60 * 1000;
 
 type UnknownRecord = Record<string, unknown>;
 
 export async function analyzeVehicleImage(request: Request): Promise<VehicleAnalysisResult> {
-  if (process.env.AI_FEATURE_ENABLED === "false") throw new AiRouteError("AI image analysis is currently paused.", 503);
+  if (process.env.AI_FEATURE_ENABLED === "false") throw new AiRouteError("Photo ratings are taking a break right now.", 503);
 
   const provider = await getServerVehicleVisionProvider();
   try {
@@ -32,31 +38,57 @@ export async function analyzeVehicleImage(request: Request): Promise<VehicleAnal
   const image = formData.get("image");
   if (!(image instanceof File)) throw new AiRouteError("Choose a car photo first.", 400);
   if (!ACCEPTED_TYPES.has(image.type)) throw new AiRouteError("Use a JPG, PNG, or WebP image.", 400);
-  if (image.size > MAX_FILE_SIZE) throw new AiRouteError("Keep the processed image under 4 MB.", 413);
+  if (image.size > MAX_FILE_SIZE) throw new AiRouteError("Keep the processed image under 3 MB.", 413);
 
   const bytes = Buffer.from(await image.arrayBuffer());
+  const cacheKey = createHash("sha256").update(bytes).digest("hex");
+  const cached = analysisCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  if (cached) analysisCache.delete(cacheKey);
+
   const dataUrl = `data:${image.type};base64,${bytes.toString("base64")}`;
 
   try {
     const analyzed = await provider.analyzeVehicle(dataUrl);
-    const validated = validateAnalysis(analyzed.value, analyzed.model);
+    const validated = validateAnalysis(analyzed.value);
     const query = `${validated.recognition.make} ${validated.recognition.model}`.trim();
-    const matches = query.length > 2 ? await searchCatalog(query, 5) : [];
-    validated.matchedCar = matches[0];
-    return validated;
+    const catalogMatches = query.length > 2 ? await searchCatalog(query, 6) : [];
+    const matchedCar = catalogMatches[0];
+    const calculated = calculateBuildRating(validated.accessories, matchedCar?.ratings, validated.styleRating.score);
+
+    const result: VehicleAnalysisResult = {
+      recognition: validated.recognition,
+      accessoryDetection: {
+        accessories: calculated.accessories,
+        totalImpact: calculated.buildRating.totalImpact,
+        ratingImpact: calculated.ratingImpact,
+      },
+      styleRating: validated.styleRating,
+      matchedCar,
+      catalogMatches,
+      buildRating: calculated.buildRating,
+      model: analyzed.model,
+      provider: provider.id,
+    };
+
+    analysisCache.set(cacheKey, { value: result, expiresAt: Date.now() + CACHE_TTL });
+    if (analysisCache.size > 80) pruneCache();
+    return result;
   } catch (error) {
     if (error instanceof AiProviderError) throw new AiRouteError(error.message, error.status);
     throw error;
   }
 }
 
-function validateAnalysis(value: unknown, model: string): VehicleAnalysisResult {
+function validateAnalysis(value: unknown) {
   const root = isRecord(value) ? value : {};
   const recognition = getRecord(root.recognition);
-  const accessoryDetection = getRecord(root.accessoryDetection);
   const styleRating = getRecord(root.styleRating);
-  const confidence = clampNumber(recognition.confidence, 0, 1);
-  const score = clampNumber(styleRating.score, 0, 10);
+  const rawAccessories = Array.isArray(root.accessories)
+    ? root.accessories
+    : Array.isArray(getRecord(root.accessoryDetection).accessories)
+      ? getRecord(root.accessoryDetection).accessories as unknown[]
+      : [];
 
   const alternateMatches = Array.isArray(recognition.alternateMatches)
     ? recognition.alternateMatches.slice(0, 3).map((item) => {
@@ -65,20 +97,27 @@ function validateAnalysis(value: unknown, model: string): VehicleAnalysisResult 
       })
     : [];
 
-  const accessories: AccessoryDetectionResult["accessories"] = Array.isArray(accessoryDetection.accessories)
-    ? accessoryDetection.accessories.slice(0, 10).map((item) => {
-        const record = getRecord(item);
-        const rawCategory = typeof record.category === "string" ? record.category : "other";
-        const category = ACCESSORY_CATEGORIES.includes(rawCategory as AccessoryDetectionResult["accessories"][number]["category"])
-          ? rawCategory as AccessoryDetectionResult["accessories"][number]["category"]
-          : "other";
-        return {
-          name: cleanString(record.name, "Visible modification"),
-          category,
-          confidence: clampNumber(record.confidence, 0, 1),
-        };
-      })
-    : [];
+  const accessories = rawAccessories.slice(0, 12).map((item, index) => {
+    const record = getRecord(item);
+    const category = enumValue(record.category, ACCESSORY_CATEGORIES, "other");
+    const factoryStatus = enumValue(record.factoryStatus, FACTORY_STATUSES, "unknown");
+    const name = cleanString(record.name, "Visible modification");
+    return {
+      id: makeAccessoryId(name, index),
+      name,
+      category,
+      factoryStatus,
+      confidence: clampNumber(record.confidence, 0, 1),
+      quality: clampNumber(record.quality, 0, 10, 6),
+      fit: clampNumber(record.fit, 0, 10, 6),
+      execution: clampNumber(record.execution, 0, 10, 6),
+      condition: clampNumber(record.condition, 0, 10, 6),
+      explanation: cleanString(record.explanation, "Visible in the photo, but the exact part is uncertain."),
+      ratingImpact: { vibe: 0, tuffness: 0, speed: 0, style: 0, fun: 0 },
+      overallImpact: 0,
+      enabled: true,
+    };
+  });
 
   return {
     recognition: {
@@ -86,17 +125,16 @@ function validateAnalysis(value: unknown, model: string): VehicleAnalysisResult 
       model: cleanString(recognition.model, "Vehicle"),
       trim: cleanOptionalString(recognition.trim),
       yearRange: cleanOptionalString(recognition.yearRange),
-      confidence,
+      confidence: clampNumber(recognition.confidence, 0, 1),
       alternateMatches,
     },
-    accessoryDetection: { accessories },
+    accessories,
     styleRating: {
-      score,
-      verdict: cleanString(styleRating.verdict, "A clean, interesting setup."),
+      score: clampNumber(styleRating.score, 0, 10, 6.5),
+      verdict: cleanString(styleRating.verdict, "It has a clear point of view."),
       notes: cleanStringArray(styleRating.notes, 4),
       observations: cleanStringArray(styleRating.observations, 6),
     },
-    model,
   };
 }
 
@@ -109,7 +147,7 @@ function getRecord(value: unknown): UnknownRecord {
 }
 
 function cleanString(value: unknown, fallback: string) {
-  return typeof value === "string" && value.trim() ? value.trim().slice(0, 180) : fallback;
+  return typeof value === "string" && value.trim() ? value.trim().slice(0, 220) : fallback;
 }
 
 function cleanOptionalString(value: unknown) {
@@ -118,13 +156,17 @@ function cleanOptionalString(value: unknown) {
 
 function cleanStringArray(value: unknown, max: number) {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, max).map((item) => item.trim().slice(0, 240))
+    ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, max).map((item) => item.trim().slice(0, 260))
     : [];
 }
 
-function clampNumber(value: unknown, min: number, max: number) {
+function clampNumber(value: unknown, min: number, max: number, fallback = min) {
   const number = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : min;
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
+}
+
+function enumValue<T extends string>(value: unknown, allowed: T[], fallback: T): T {
+  return typeof value === "string" && allowed.includes(value as T) ? value as T : fallback;
 }
 
 function enforceRateLimit(request: Request) {
@@ -135,8 +177,15 @@ function enforceRateLimit(request: Request) {
     requests.set(key, { count: 1, resetAt: now + 60_000 });
     return;
   }
-  if (current.count >= 5) throw new AiRouteError("Please wait a minute before analyzing another photo.", 429);
+  if (current.count >= 4) throw new AiRouteError("Give it a minute before rating another photo.", 429);
   current.count += 1;
+}
+
+function pruneCache() {
+  const now = Date.now();
+  for (const [key, entry] of analysisCache) {
+    if (entry.expiresAt <= now || analysisCache.size > 60) analysisCache.delete(key);
+  }
 }
 
 export class AiRouteError extends Error {

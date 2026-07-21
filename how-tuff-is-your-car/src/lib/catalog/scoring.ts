@@ -146,7 +146,7 @@ export function calculateRatings(input: ScoreInput): {
 
 export function getVerdict(score: number) {
   if (score >= 9.2) return "Seriously tuff";
-  if (score >= 8.4) return "Certified tuff";
+  if (score >= 8.4) return "Tuff.";
   if (score >= 7.5) return "Clean";
   if (score >= 6.5) return "Solid";
   if (score >= 5.4) return "Has potential";

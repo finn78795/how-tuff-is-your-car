@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { Camera, Heart, Scale, Search, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getFavorites } from "@/lib/storage";
+import { getFavorites, getSavedBuilds } from "@/lib/storage";
 
 export function SiteHeader() {
   const [favoriteCount, setFavoriteCount] = useState(0);
   useEffect(() => {
-    const sync = () => setFavoriteCount(getFavorites().length);
+    const sync = () => setFavoriteCount(getFavorites().length + getSavedBuilds().length);
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener("htiyc-storage", sync);

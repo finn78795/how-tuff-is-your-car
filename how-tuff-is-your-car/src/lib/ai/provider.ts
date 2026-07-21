@@ -1,7 +1,7 @@
 import type { AccessoryDetectionResult, StyleRatingResult, VehicleAiProvider, VehicleAnalysisResult, VehicleRecognitionResult } from "./types";
 
 const MAX_SOURCE_BYTES = 20 * 1024 * 1024;
-const MAX_UPLOAD_BYTES = 3.8 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 2.8 * 1024 * 1024;
 
 class ApiVehicleAiProvider implements VehicleAiProvider {
   private async analyze(image: File): Promise<VehicleAnalysisResult> {
@@ -38,10 +38,10 @@ async function optimizeVehicleImage(file: File) {
   try {
     const image = await loadImage(file);
     const longest = Math.max(image.naturalWidth, image.naturalHeight);
-    const firstScale = Math.min(1, 1600 / longest);
+    const firstScale = Math.min(1, 1280 / longest);
     let output = await renderJpeg(image, firstScale, 0.84, file.name);
-    if (output.size > MAX_UPLOAD_BYTES) output = await renderJpeg(image, Math.min(firstScale, 1280 / longest), 0.72, file.name);
-    if (output.size > MAX_UPLOAD_BYTES) output = await renderJpeg(image, Math.min(firstScale, 1024 / longest), 0.62, file.name);
+    if (output.size > MAX_UPLOAD_BYTES) output = await renderJpeg(image, Math.min(firstScale, 1100 / longest), 0.72, file.name);
+    if (output.size > MAX_UPLOAD_BYTES) output = await renderJpeg(image, Math.min(firstScale, 900 / longest), 0.62, file.name);
     if (output.size > MAX_UPLOAD_BYTES) throw new Error("The photo is still too large after resizing. Try a screenshot or a smaller crop.");
     return output;
   } catch (error) {
@@ -89,3 +89,26 @@ function renderJpeg(image: HTMLImageElement, scale: number, quality: number, ori
 }
 
 export const vehicleAiProvider: VehicleAiProvider = new ApiVehicleAiProvider();
+
+
+export async function createBuildThumbnail(file: File) {
+  if (typeof document === "undefined") return undefined;
+  try {
+    const image = await loadImage(file);
+    const longest = Math.max(image.naturalWidth, image.naturalHeight);
+    const thumbnail = await renderJpeg(image, Math.min(1, 560 / longest), 0.68, file.name);
+    if (thumbnail.size > 280 * 1024) return undefined;
+    return await fileToDataUrl(thumbnail);
+  } catch {
+    return undefined;
+  }
+}
+
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not save preview."));
+    reader.onerror = () => reject(new Error("Could not save preview."));
+    reader.readAsDataURL(file);
+  });
+}

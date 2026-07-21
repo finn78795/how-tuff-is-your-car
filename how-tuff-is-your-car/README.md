@@ -1,166 +1,193 @@
-# How Tuff Is Your Car?
+# How Tuff Is Your Car? — V3
 
-A dark, mobile-first car hobby site built with Next.js, TypeScript, React, and Tailwind CSS. It mixes a large open vehicle catalog with explainable just-for-fun ratings, comparisons, local favorites, community-sourced car photos, VIN decoding, and optional AI photo analysis.
+A dark, mobile-first Next.js car rating site for searching cars, comparing them, saving favorites, and rating a personal build from a photo.
+
+The site tries to feel like somebody's late-night car rabbit hole rather than a car-shopping company. Scores are opinions, but the formulas, data sources, photo labels, and modification impacts are kept consistent and visible.
 
 ## What is included
 
-- Full-catalog autocomplete search
-- Browse by year, make, model, and available configuration
-- 2,375 bundled classic year/model entries covering 1950–1983
-- Tens of thousands of modern configurations loaded from FuelEconomy.gov
-- NHTSA vPIC model discovery and a 17-character VIN decoder
-- Wikidata discovery for extra global and unusual models
-- Wikimedia Commons photo lookup with visible source links and an original fallback illustration
+- Next.js 16 App Router, TypeScript, React, and Tailwind CSS
+- Search with autocomplete across curated, classic, and modern vehicle records
+- Browse by year, make, and model
 - Animated ratings for vibe, tuffness, speed, style, and fun
-- Confidence labels and a “Why this score?” explanation for every result
-- Side-by-side comparison mode
-- Favorites and recently viewed cars stored locally in the browser
-- Real OpenAI vision integration for vehicle recognition, visible accessory detection, and style notes
-- Browser-side image resizing to stay below Vercel’s function upload limit
-- Responsive loading, error, empty, and not-found states
-
-## Data architecture
-
-The app deliberately does not depend on one commercial car database.
-
-### Bundled classic catalog
-
-`src/data/classic-models.ts` contains model production ranges for enthusiast, everyday, utility, and unusual cars. The app expands each range into individual year/model entries. These pages are model-level estimates because exact trims and engines varied by market.
-
-### FuelEconomy.gov
-
-Before each production build, `scripts/sync-epa-catalog.mjs` downloads the official vehicle CSV, keeps the useful configuration fields, and stores a compressed server-side snapshot in `src/data/epa-catalog.json.gz`. That gives production search fast access to tens of thousands of configurations without downloading the full CSV on a visitor’s first search.
-
-If the build-time refresh is temporarily unavailable, the script keeps the previous snapshot. When no populated snapshot exists, `src/lib/catalog/epa.ts` can still fetch and cache the official CSV at runtime. Bundled classics and curated cars remain available either way.
-
-### NHTSA vPIC
-
-`src/lib/catalog/nhtsa.ts` supplements model browsing and powers the VIN decoder. It is used for identification and factory-description data, not performance claims.
-
-### Wikidata
-
-`src/lib/catalog/wikidata.ts` acts as a fallback discovery layer for global and uncommon models. Wikidata results are labeled as estimated model-level records.
-
-### Photos
-
-`src/lib/catalog/images.ts` searches Wikimedia Commons. Every car card and result page always shows either:
-
-1. A matching community photo with a link to its Commons source, or
-2. The original fallback car illustration in `public/images/fallback-car.svg`.
-
-The app does not copy third-party photos into the repository.
-
-## Rating system
-
-Curated seed cars use hand-tuned ratings. Imported vehicles use the deterministic engine in `src/lib/catalog/scoring.ts`, which considers available specifications, body style, drivetrain, age, enthusiast significance, and intended use.
-
-Imported ratings are clearly marked `medium` or `estimated`. The scores are entertainment, not safety ratings, market values, or buying advice.
-
-## AI photo analyzer
-
-The public UI calls one combined endpoint:
-
-```text
-POST /api/ai/analyze
-```
-
-The server returns structured data for:
-
-- Likely vehicle recognition
-- Likely year range and trim
-- Visible accessories or modifications
-- Style score and short reasoning
-- Closest catalog match
-
-The current adapter lives in:
-
-```text
-src/lib/ai/openai-provider.ts
-```
-
-The provider contract and selector live in:
-
-```text
-src/lib/ai/server-provider.ts
-```
-
-To swap models or providers, add another adapter implementing `ServerVehicleVisionProvider`, then select it through `AI_PROVIDER`. The catalog matching and UI do not need to change.
-
-## Environment variables
-
-Copy `.env.example` to `.env.local` for local development:
-
-```bash
-cp .env.example .env.local
-```
-
-Required only for AI:
-
-```text
-OPENAI_API_KEY=your_api_key
-```
-
-Optional:
-
-```text
-AI_PROVIDER=openai
-OPENAI_VISION_MODEL=gpt-4o-mini
-AI_FEATURE_ENABLED=true
-NEXT_PUBLIC_SITE_URL=https://your-domain.example
-```
-
-Keep `OPENAI_API_KEY` server-side. Do not prefix it with `NEXT_PUBLIC_`.
+- Comparison mode
+- Favorites, recent cars, and photo-rated builds stored in the browser
+- Classic model coverage beginning in 1950
+- FuelEconomy.gov catalog importer for 1984-current configurations
+- NHTSA VIN decoder and modern model validation
+- Wikidata discovery for uncommon/global vehicles
+- Staged Wikimedia/Wikipedia/Wikidata photo resolver
+- Honest photo labels: exact search, same year/model, same generation, model-family, or illustration
+- Free photo ratings through Cloudflare Workers AI
+- Visible accessory detection and individual 0–10 accessory ratings
+- Fixed, deterministic accessory score impact capped at ±1.2 overall points
+- User correction controls before a build is saved
 
 ## Run locally
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
 Open `http://localhost:3000`.
 
-Refresh the modern catalog manually:
+Useful checks:
 
 ```bash
-npm run sync:catalog
-```
-
-Run the complete quality check:
-
-```bash
+npm run lint
+npm run build
 npm run check
 ```
 
-## Deploy on Vercel
+## Vehicle data
 
-1. Push the project contents to GitHub. `package.json` must be inside the selected Vercel root directory.
-2. Import the repository in Vercel.
-3. Select the **Next.js** framework preset.
-4. Leave Build Command and Output Directory on their defaults. The normal `npm run build` command refreshes the compressed FuelEconomy.gov snapshot before compiling Next.js.
-5. Add `OPENAI_API_KEY` under **Settings → Environment Variables** if you want photo analysis.
-6. Redeploy after adding or changing environment variables.
+The catalog combines several layers rather than depending on one company:
 
-The site and catalog work without an AI key. The photo analyzer will show a setup message until one is added.
+1. **Curated enthusiast cars** in `src/data/cars.json`
+2. **Classic model ranges** in `src/data/classic-models.ts`
+3. **FuelEconomy.gov configurations** compressed into `src/data/epa-catalog.json.gz`
+4. **NHTSA vPIC** for VIN decoding and modern model validation
+5. **Wikidata** as an uncommon/global discovery fallback
 
-## Main folders
+During `npm run build`, `scripts/sync-epa-catalog.mjs` attempts to refresh the official FuelEconomy.gov snapshot. When the upstream service is unavailable, the build continues with the bundled catalog and runtime fallbacks.
+
+## Vehicle photos
+
+Every car card has a supporting visual. The resolver in `src/lib/catalog/images.ts` works through these stages:
+
+1. Exact year, make, model, and useful trim text
+2. Year, make, and model
+3. Generation-level search
+4. Model-family search
+5. Wikipedia article image, with its Wikimedia file attribution
+6. Wikidata `P18` image
+7. Original car illustration when no trustworthy public image is found
+
+The UI says what kind of match is being shown. It does not claim that a nearby year or model-family image is the exact trim. Each real image keeps its source, creator, and license details when Wikimedia provides them.
+
+A small **Suggest a better photo** button opens a prefilled GitHub issue.
+
+## Free photo ratings with Cloudflare Workers AI
+
+The default provider is Cloudflare Workers AI using:
 
 ```text
-src/app                    Pages and API routes
-src/components             Search, cards, comparison, AI, VIN, and storage UI
-src/data/cars.json          Curated detailed seed cars
-src/data/classic-models.ts  Bundled classic model ranges
-src/data/epa-catalog.json.gz Build-refreshed modern configuration snapshot
-scripts/sync-epa-catalog.mjs FuelEconomy.gov snapshot builder
-src/lib/catalog             Catalog adapters, normalization, scoring, and images
-src/lib/ai                  Browser transport and swappable server AI providers
-src/types                   Shared vehicle and AI types
+@cf/meta/llama-3.2-11b-vision-instruct
 ```
+
+The model is open-weight and supports image reasoning. Cloudflare exposes it through a public REST API. Workers AI currently includes a free allocation of 10,000 neurons per day. On a Workers Free account, requests fail after the free daily allowance is used instead of automatically charging overages.
+
+### 1. Create Cloudflare credentials
+
+In the Cloudflare dashboard:
+
+1. Open **Workers AI**.
+2. Choose **Use REST API**.
+3. Create a Workers AI API token.
+4. Copy the **Account ID** and **API token**.
+5. The token needs Workers AI Read and Edit permissions.
+
+### 2. Accept the Llama Vision license once
+
+Cloudflare requires a one-time license acceptance for this model. Run:
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/run/@cf/meta/llama-3.2-11b-vision-instruct" \
+  -X POST \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"agree"}'
+```
+
+### 3. Add Vercel environment variables
+
+In **Vercel → Project → Settings → Environment Variables**, add:
+
+```text
+AI_PROVIDER=cloudflare
+AI_FEATURE_ENABLED=true
+CLOUDFLARE_ACCOUNT_ID=your_account_id
+CLOUDFLARE_API_TOKEN=your_api_token
+CLOUDFLARE_VISION_MODEL=@cf/meta/llama-3.2-11b-vision-instruct
+```
+
+Redeploy after adding them.
+
+Never prefix the account ID or token with `NEXT_PUBLIC_`. The site sends photos to its own server route, and only the server calls Cloudflare.
+
+## How build ratings work
+
+The vision model does two jobs:
+
+- suggests the vehicle and rough year/trim
+- describes visible accessories and scores their visible quality, fit, installation, and condition
+
+The model does **not** directly decide how many overall points a modification adds. `src/lib/build-scoring.ts` applies fixed category weights to each detected item.
+
+Examples:
+
+- good wheels mostly affect style and vibe
+- off-road equipment mostly affects tuffness and fun
+- suspension can affect style, speed, and fun
+- utility equipment can help tuffness while slightly hurting speed
+- poor fit, damage, or messy execution can reduce the score
+- factory equipment contributes zero modification points
+
+All accessory effects together are capped at ±1.2 points. The base vehicle therefore remains more important than the modifications.
+
+Before saving a build, visitors can:
+
+- edit the detected make, model, year range, and trim
+- choose a different catalog match
+- remove an incorrect accessory
+- add a missing accessory
+- mark a part as factory, aftermarket, or uncertain
+- exclude a part from the score
+- give the build a nickname
+
+Saved builds and small image previews remain in local storage. They are not uploaded to a public feed.
+
+## AI provider architecture
+
+The public UI calls `VehicleAiProvider` in:
+
+```text
+src/lib/ai/provider.ts
+```
+
+Server-side provider selection lives in:
+
+```text
+src/lib/ai/server-provider.ts
+```
+
+Cloudflare's adapter is:
+
+```text
+src/lib/ai/cloudflare-provider.ts
+```
+
+A different image model can be added later without rewriting the upload interface or build-scoring logic.
+
+## Deploy to Vercel
+
+The existing repository uses an inner project folder. Keep `package.json` in the same Vercel Root Directory that already works.
+
+Recommended settings:
+
+- Framework Preset: **Next.js**
+- Install Command: default
+- Build Command: default (`npm run build`)
+- Output Directory: no override
+
+Vercel automatically redeploys after a commit to the connected branch.
 
 ## Important limitations
 
-- Upstream free services can be temporarily unavailable. The compressed EPA snapshot, bundled classics, and curated cars keep the core catalog useful when that happens.
-- A model-level entry does not guarantee a particular trim or engine.
-- AI can confuse similar generations, trims, badges, wheels, or accessories.
-- Wikimedia photo matches can occasionally be imperfect; the source link makes corrections and verification possible.
-- OpenAI API usage is billed separately from ChatGPT subscriptions.
+- Public vehicle datasets differ by country, market, year, and trim.
+- The classic catalog is model-level unless a car has curated trim data.
+- Photo matching can fall back to the same generation or model family; the label discloses this.
+- Vision models can confuse similar generations, factory options, replica parts, and subtle modifications.
+- The ratings are entertainment, not safety scores, valuations, or buying advice.
+- The free Workers AI allowance is finite and resets daily.

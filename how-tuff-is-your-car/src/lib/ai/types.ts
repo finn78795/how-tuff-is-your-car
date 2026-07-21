@@ -1,4 +1,21 @@
-import type { CarSearchResult } from "@/types/car";
+import type { CarRatings, CarSearchResult, RatingKey } from "@/types/car";
+
+export type AccessoryCategory =
+  | "wheels"
+  | "tires"
+  | "suspension"
+  | "aero"
+  | "body"
+  | "lighting"
+  | "exhaust"
+  | "utility"
+  | "offroad"
+  | "wrap"
+  | "tint"
+  | "interior"
+  | "other";
+
+export type FactoryStatus = "aftermarket" | "factory" | "unknown";
 
 export interface VehicleRecognitionResult {
   make: string;
@@ -9,12 +26,26 @@ export interface VehicleRecognitionResult {
   alternateMatches?: Array<{ label: string; confidence: number }>;
 }
 
+export interface AccessoryObservation {
+  id: string;
+  name: string;
+  category: AccessoryCategory;
+  factoryStatus: FactoryStatus;
+  confidence: number;
+  quality: number;
+  fit: number;
+  execution: number;
+  condition: number;
+  explanation: string;
+  ratingImpact: Record<RatingKey, number>;
+  overallImpact: number;
+  enabled: boolean;
+}
+
 export interface AccessoryDetectionResult {
-  accessories: Array<{
-    name: string;
-    category: "wheels" | "aero" | "lighting" | "suspension" | "body" | "utility" | "other";
-    confidence: number;
-  }>;
+  accessories: AccessoryObservation[];
+  totalImpact: number;
+  ratingImpact: Record<RatingKey, number>;
 }
 
 export interface StyleRatingResult {
@@ -24,12 +55,24 @@ export interface StyleRatingResult {
   observations: string[];
 }
 
+export interface BuildRatingResult {
+  baseScore?: number;
+  finalScore: number;
+  totalImpact: number;
+  baseRatings?: CarRatings;
+  adjustedRatings?: CarRatings;
+  verdict: string;
+}
+
 export interface VehicleAnalysisResult {
   recognition: VehicleRecognitionResult;
   accessoryDetection: AccessoryDetectionResult;
   styleRating: StyleRatingResult;
   matchedCar?: CarSearchResult;
+  catalogMatches?: CarSearchResult[];
+  buildRating: BuildRatingResult;
   model: string;
+  provider: string;
 }
 
 export interface VehicleAiProvider {
